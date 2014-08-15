@@ -84,7 +84,7 @@ public class HttpResponseWrapper {
         }
 
         ContentType contentType = ContentType.getOrDefault(response.getEntity());
-        this.charset = contentType.getCharset().name();
+        this.charset = contentType.getCharset()==null?null:contentType.getCharset().name();
         this.statusCode = response.getStatusLine().getStatusCode();
         this.statusText = response.getStatusLine().getReasonPhrase();
 

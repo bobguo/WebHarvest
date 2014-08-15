@@ -76,6 +76,7 @@
 	<modules>
 		<module>webharvest-core</module>
 		<module>webharvest-ide</module>
+        <module>webharvest-taobao</module>
 	</modules>
 	<distributionManagement>
 		<snapshotRepository>
@@ -225,10 +226,10 @@
 			<artifactId>slf4j-simple</artifactId>
 			<scope>test</scope>
 		</dependency>
-<!--     </dependencies> -->
+    </dependencies>
 
-<!--     <dependencyManagement> -->
-<!--         <dependencies> -->
+    <dependencyManagement>
+    <dependencies>
 		<dependency>
 			<groupId>net.sourceforge.htmlcleaner</groupId>
 			<artifactId>htmlcleaner</artifactId>
@@ -470,5 +471,5 @@
 <!-- 			<version>3.1</version> -->
 <!-- 		</dependency> -->
 	</dependencies>
-<!--     </dependencyManagement> -->
+     </dependencyManagement>
 </project>

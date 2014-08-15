@@ -36,17 +36,7 @@
 */
 package org.webharvest.runtime.web;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.Charset;
-import java.util.*;
-import java.util.Map.Entry;
-
+import com.google.inject.Inject;
 import org.apache.commons.httpclient.contrib.ssl.EasySSLProtocolSocketFactory;
 import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringUtils;
@@ -73,14 +63,27 @@ import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
 import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.ContentEncodingHttpClient;
+import org.apache.http.impl.client.DecompressingHttpClient;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.CoreConnectionPNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.webharvest.runtime.variables.Variable;
 import org.webharvest.utils.CommonUtil;
 
-import com.google.inject.Inject;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
+import java.util.*;
+import java.util.Map.Entry;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * HTTP client functionality.
@@ -102,11 +105,13 @@ public class HttpClientManager {
 
     @Inject
     public HttpClientManager(final ProxySettings proxySettings) {
-        this.client = new DefaultHttpClient();
+        this.client = new ContentEncodingHttpClient(new PoolingClientConnectionManager(),null);
         this.httpInfo = new HttpInfo(client);
 
         client.getConnectionManager().getSchemeRegistry().register(new Scheme("https", 443, new EasySSLProtocolSocketFactory()));
         client.getParams().setBooleanParameter("http.protocol.allow-circular-redirects", true);
+        client.getParams().setIntParameter(CoreConnectionPNames.SO_TIMEOUT,2*60*1000);
+        client.getParams().setBooleanParameter(CoreConnectionPNames.SO_KEEPALIVE,true);
 
         proxySettings.apply(this.client);
     }
@@ -245,13 +250,13 @@ public class HttpClientManager {
                 break;
             }
             if (attemptsRemain == 0) {
-                throw new org.webharvest.exception.HttpException("HTTP Status: " + response.getStatusLine().getStatusCode() + ", Url: " + url);
+                throw new org.webharvest.exception.HttpException("HTTP Status: " + response==null?"timeout":response.getStatusLine().getStatusCode() + ", Url: " + url);
             }
 
             final long delayBeforeRetry = (long) (retryDelay * (Math.pow(retryDelayFactor, retryAttempts - attemptsRemain)));
 
             LOG.warn("HTTP Status: {}; URL: [{}]; Waiting for {} second(s) before retrying (attempt {} of {})...", new Object[]{
-            		response.getStatusLine(), url, MILLISECONDS.toSeconds(delayBeforeRetry), retryAttempts - attemptsRemain + 1, retryAttempts});
+                    response==null?"timeout":response.getStatusLine(), url, MILLISECONDS.toSeconds(delayBeforeRetry), retryAttempts - attemptsRemain + 1, retryAttempts});
 
             Thread.sleep(delayBeforeRetry);
             attemptsRemain--;
@@ -264,7 +269,7 @@ public class HttpClientManager {
     }
 
     private HttpResponse executeFollowingRedirects(HttpRequestBase method, String url, Boolean followRedirects) throws IOException {
-        final HttpResponse response = client.execute(method);
+        final HttpResponse response = new DecompressingHttpClient(client).execute(method);
         // POST method is not redirected automatically, so it's on our responsibility then.
         if (BooleanUtils.isTrue(followRedirects)
                 && ((response.getStatusLine().getStatusCode() == HttpStatus.SC_MOVED_TEMPORARILY) ||

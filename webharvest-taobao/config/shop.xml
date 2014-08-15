@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<config charset="ISO-8859-1" xmlns="http://web-harvest.sourceforge.net/schema/2.1/core"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://web-harvest.sourceforge.net/schema/2.1/core wh-core-2.1-loose.xsd">
+    
+    <include path="functions.xml"/>
+
+    <def var="shops">
+        <database connection="jdbc:mysql://localhost/houbo" jdbcclass="com.mysql.jdbc.Driver" username="root" password="cloudSoft@Skybility">
+            <template>
+            select shop from brand_shop where brand = '${brand}'
+            </template>
+        </database>
+    </def>
+
+    <loop item="shop" index="i">
+        <list><get var="shops"/></list>
+        <!-- collects all tables for individual products -->
+        <body>
+            <empty>
+                <def var="shop_details">
+                    <call name="download-multipage-list">
+                        <call-param name="pageUrl"><template>http://s.taobao.com/search?&amp;app=shopsearch&amp;initiative_id=staobaoz_20140726&amp;q=${houbo.escapeUrl(shop.get("shop"))}</template></call-param>
+                        <call-param name="nextXPath">//a[@class="page-next"]/@href</call-param>
+                        <call-param name="itemXPath">//*[@class="list-item"]</call-param>
+                        <call-param name="maxloops">2</call-param>
+                    </call>
+                </def>
+                <loop item="item" index="j">
+                    <list><get var="shop_details"/></list>
+                    <body>
+                        <def var="shop_id">
+                            <xpath expression="normalize-space(data(//li[@class='list-img']/a/@data-uid))">
+                                <get var="item"/>
+                            </xpath>
+                        </def>
+                        <def var="shop_name">
+                            <xpath expression="normalize-space(data(//a[@class='shop-name J_shop_name']))">
+                                <get var="item"/>
+                            </xpath>
+                        </def>
+                        <def var="shop_rank">
+                            <xpath expression="normalize-space(substring-after(//li[@class='list-info icon-5zhe']/h4/a[2]/@class,' '))">
+                                <get var="item"/>
+                            </xpath>
+                        </def>
+                        <def var="shop_owner">
+                            <xpath expression="normalize-space(data(//span[@class='shop-info-list']/a[1]))">
+                                <get var="item"/>
+                            </xpath>
+                        </def>
+                        <database connection="jdbc:mysql://localhost/houbo" jdbcclass="com.mysql.jdbc.Driver" username="root" password="cloudSoft@Skybility">
+                            <!--<template>
+                            insert into shop_detail (id,shop_id,name, rank) values
+                            (
+                            '${shop_owner}','${shop_id}','${shop_name}','${shop_rank}'
+                            )
+                            ON DUPLICATE KEY UPDATE name = '${shop_name}' ,rank = '${shop_rank}';
+                            </template>-->
+                            insert into shop_detail (id,shop_id,name, rank) values
+                            (
+                            <db-param><get var="shop_owner"/></db-param>,
+                            <db-param><get var="shop_id"/></db-param>,
+                            <db-param><get var="shop_name"/></db-param>,
+                            <db-param><get var="shop_rank"/></db-param>
+                            )
+                            ON DUPLICATE KEY UPDATE
+                            name = <db-param><get var="shop_name"/></db-param>,
+                            rank = <db-param><get var="shop_rank"/></db-param>;
+                        </database>
+                        <database connection="jdbc:mysql://localhost/houbo" jdbcclass="com.mysql.jdbc.Driver" username="root" password="cloudSoft@Skybility">
+                            insert into shop_history (id,name, rank) values
+                            (
+                            <db-param><get var="shop_owner"/></db-param>,
+                            <db-param><get var="shop_name"/></db-param>,
+                            <db-param><get var="shop_rank"/></db-param>
+                            )
+                        </database>
+                    </body>
+                </loop>
+            </empty>
+        </body>
+    </loop>
+                
+
+
+
+<!--
+    <file action="write" path="taobao/shop.csv" charset="UTF-8">
+        <![CDATA[
+        店铺ID	店铺名称	卖家	城市	卖家信用	主营	好评率	产品数	月销量	订单数	ID加密值
+       ]]>
+        <loop item="item" index="i">
+            <list><get var="shops"/></list>
+            <body>
+                <xquery>
+                    <xq-param name="item" type="node()"><get var="item"/></xq-param>
+                    <xq-expression><![CDATA[
+                            declare variable $item as node() external;
+
+                            let $name := data($item//div[@class='shmod']/div[@class='mod-content']/h2[@class='title']/a)
+                            let $price := data($item//div[@class='shmod']/div[@class='mod-content']/div[@class='compare']/a/strong)
+                                return
+                                    <product>
+                                        <name>{normalize-space($name)}</name>
+                                        <price>{normalize-space($price)}</price>
+                                    </product>
+                    ]]></xq-expression>
+                </xquery>
+            </body>
+        </loop>
+        <![CDATA[ </catalog> ]]>
+    </file>
+-->
+</config>
